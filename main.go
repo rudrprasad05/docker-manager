@@ -13,31 +13,40 @@ import (
 	"github.com/rudrprasad05/go-logs/logs"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/gorilla/mux"
 )
 
+type Message struct {
+	Data string `json:"data"`
+}
+
+type ContainerRun struct {
+	ImageName string 		`json:"imageName"`
+	ContainerName string 	`json:"containerName"`
+	CMD []string 			`json:"cmd"`
+	HostPort string 		`json:"hostPort"`
+	ContainerPort string 	`json:"containerPort"`
+}
+
+type Routes struct {
+	LOG *logs.Logger
+}
+
 func main() {
+	router := mux.NewRouter()
 	logger, err := logs.NewLogger()
 	if err != nil{
 		log.Println("err", err)
 		return
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/docker/images/list", handle)
-	mux.HandleFunc("/docker/container/run", func(w http.ResponseWriter, r *http.Request) {
-		imageName := "go-http-server"
-		containerName := "go-http-server-container"
-		cmd := []string{"./main"}
-		hostPort := "8082"
-		containerPort := "8082"
-	
-		// Create and run the container
-		createAndRunContainer(imageName, containerName, cmd, hostPort, containerPort)
-	
-	})
+
+	router.HandleFunc("/docker/images/list", handle)
+	router.HandleFunc("/docker/container/run", PostRunCont).Methods("POST")
+	router.HandleFunc("/docker/container/stop", PostStopCont).Methods("POST")
 	// mux.HandleFunc("/download", routes.DownloadImageHandler)
 
-	corsHandler := enableCORS(mux)
+	corsHandler := enableCORS(router)
 	loggedHandler := logs.LoggingMiddleware(logger, corsHandler)
 
 	
@@ -87,6 +96,58 @@ func enableCORS(next http.Handler) http.Handler {
 	})
 }
 
+func PostRunCont(w http.ResponseWriter, r *http.Request){
+	var imageProps ContainerRun
+
+	err := json.NewDecoder(r.Body).Decode(&imageProps)
+	if err != nil {
+		data := Message{Data: "invalid json"}
+		fmt.Println("400 bad request; invalid json", err)
+		sendJSONResponse(w, http.StatusBadRequest, data)
+		return
+	}
+
+	// Create and run the container
+	resp, respErr := createAndRunContainer(imageProps.ImageName, imageProps.ContainerName, imageProps.CMD, imageProps.HostPort, imageProps.ContainerPort)
+	if respErr != nil {
+		data := Message{Data: "invalid json"}
+		fmt.Println("400 bad request; invalid json", err)
+		sendJSONResponse(w, http.StatusBadRequest, data)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
+}
+
+func PostStopCont(w http.ResponseWriter, r *http.Request){
+	var data map[string]string
+
+	err := json.NewDecoder(r.Body).Decode(&data)
+	if err != nil {
+		data := Message{Data: "invalid json"}
+		fmt.Println("400 bad request; invalid json", err)
+		sendJSONResponse(w, http.StatusBadRequest, data)
+		return
+	}
+
+	// Create and run the container
+	containerID := data["id"]
+	respErr := stopContainer(containerID, 10)
+	if respErr != nil {
+		data := Message{Data: "invalid json"}
+		fmt.Println("400 bad request; invalid json", err)
+		sendJSONResponse(w, http.StatusBadRequest, data)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	msg := Message{Data: "container stopped"}
+	json.NewEncoder(w).Encode(msg)
+}
+
 func createAndRunContainer(imageName string, containerName string, cmd []string, hostPort string, containerPort string) (string, error){
 	ctx := context.Background()
 
@@ -117,4 +178,39 @@ func createAndRunContainer(imageName string, containerName string, cmd []string,
 
 	fmt.Printf("Container %s is running in detached mode.\n", containerName)
 	return resp.ID, nil // Return the container ID
+}
+
+func stopContainer(containerID string, timeoutSeconds int) error {
+	ctx := context.Background()
+
+	// Create a Docker client
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return fmt.Errorf("failed to create Docker client: %w", err)
+	}
+	defer cli.Close()
+
+	
+	// Stop the container
+	var c = timeoutSeconds * 60
+
+	stopOptions := container.StopOptions{
+		Timeout: &c, // Use pointer to time.Duration
+	}
+	if err := cli.ContainerStop(ctx, containerID, stopOptions); err != nil {
+		return fmt.Errorf("failed to stop container %s: %w", containerID, err)
+	}
+
+	fmt.Printf("Container %s stopped successfully.\n", containerID)
+	return nil
+}
+
+func sendJSONResponse(w http.ResponseWriter, status int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+
+	// Encode data to JSON and send response
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
