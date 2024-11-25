@@ -4,6 +4,8 @@ go 1.23.2
 
 require github.com/docker/docker v27.3.1+incompatible
 
+require github.com/rudrprasad05/go-logs v1.0.0 // indirect
+
 require (
 	github.com/Microsoft/go-winio v0.4.14 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
