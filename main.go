@@ -39,13 +39,19 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cli.Close()
 
-	containers, err := cli.ImageList(ctx, image.ListOptions{})
+	images, err := cli.ImageList(ctx, image.ListOptions{})
 	if err != nil {
 		panic(err)
 	}
 
-	for _, container := range containers {
-		fmt.Println(container.ID)
+	for _, image := range images {
+		if len(image.RepoTags) > 0 {
+			for _, tag := range image.RepoTags {
+				fmt.Println(tag)
+			}
+		} else {
+			fmt.Println("<untagged image>")
+		}
 	}
 }
 
