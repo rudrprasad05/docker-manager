@@ -44,7 +44,7 @@ func (routes *Routes) PostStopCont(w http.ResponseWriter, r *http.Request){
 
 	// Create and run the container
 	containerID := data["id"]
-	respErr := stopContainer(containerID, 10)
+	respErr := routes.stopContainer(containerID, 10)
 	if respErr != nil {
 		data := Message{Data: "invalid json"}
 		fmt.Println("400 bad request; invalid json", err)
@@ -52,10 +52,9 @@ func (routes *Routes) PostStopCont(w http.ResponseWriter, r *http.Request){
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 	msg := Message{Data: "container stopped"}
-	json.NewEncoder(w).Encode(msg)
+	sendJSONResponse(w, http.StatusOK, msg)
+
 }
 
 
@@ -65,8 +64,9 @@ func (routes *Routes) PostRunCont(w http.ResponseWriter, r *http.Request){
 
 	err := json.NewDecoder(r.Body).Decode(&imageProps)
 	if err != nil {
-		data := Message{Data: "invalid json"}
 		fmt.Println("400 bad request; invalid json", err)
+
+		data := Message{Data: "invalid json"}
 		sendJSONResponse(w, http.StatusBadRequest, data)
 		return
 	}
@@ -74,21 +74,21 @@ func (routes *Routes) PostRunCont(w http.ResponseWriter, r *http.Request){
 	// Create and run the container
 	resp, respErr := routes.createAndRunContainer(imageProps.ImageName, imageProps.ContainerName, imageProps.CMD, imageProps.HostPort, imageProps.ContainerPort)
 	if respErr != nil {
-		data := Message{Data: "invalid json"}
 		fmt.Println("400 bad request; invalid json", err, resp)
+		
+		data := Message{Data: "invalid json"}
 		sendJSONResponse(w, http.StatusBadRequest, data)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	
 	json.NewEncoder(w).Encode(resp)
+	sendJSONResponse(w, http.StatusOK, resp)
 }
 
 
 
-func stopContainer(containerID string, timeoutSeconds int) error {
-	ctx := context.Background()
+func (routes *Routes) stopContainer(containerID string, timeoutSeconds int) error {
+	ctx := routes.CTX
 
 	// Create a Docker client
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())

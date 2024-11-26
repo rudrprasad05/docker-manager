@@ -29,6 +29,8 @@ func main() {
 	}
 	routes := &routes.Routes{LOG: logger, CTX: ctx}
 
+	router.HandleFunc("/docker/status/check", routes.GetDockerStatus)
+	router.HandleFunc("/docker/status/start", routes.GetStartDocker)
 	router.HandleFunc("/docker/images/list", routes.GetImageList)
 	router.HandleFunc("/docker/container/run", routes.PostRunCont).Methods("POST")
 	router.HandleFunc("/docker/container/stop", routes.PostStopCont).Methods("POST")
