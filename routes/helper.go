@@ -60,12 +60,13 @@ func (routes *Routes) findContainerByName(containerName string) (*types.Containe
 	return &containerInfo, nil
 }
 
-func sendJSONResponse(w http.ResponseWriter, status int, data interface{}) {
+func sendJSONResponse(w http.ResponseWriter, status int, data string) {
+	encodeData := Message{Data: data}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
 	// Encode data to JSON and send response
-	if err := json.NewEncoder(w).Encode(data); err != nil {
+	if err := json.NewEncoder(w).Encode(encodeData); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }

@@ -74,41 +74,26 @@ func (routes *Routes) GetContainerList(w http.ResponseWriter, r *http.Request) {
 
 func (routes *Routes) GetDockerStatus(w http.ResponseWriter, r *http.Request) {
 	// Check if Docker is runnin
-
 	if routes.isDockerRunning() {
-		// Respond with the container and image details, if Docker is running
-		data := Message{Data: "docker is running"}
-		sendJSONResponse(w, http.StatusBadRequest, data)
+		sendJSONResponse(w, http.StatusBadRequest, "docker is running")
 	} else {
-		// Respond with a message if Docker is down
-		data := Message{Data: "docker not running"}
-		sendJSONResponse(w, http.StatusServiceUnavailable, data)
+		sendJSONResponse(w, http.StatusServiceUnavailable, "docker not running")
 	}
 }
 
 func (routes *Routes) GetCMDStatus(w http.ResponseWriter, r *http.Request) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		data := Message{Data: "failed to create docker client"}
-		sendJSONResponse(w, http.StatusBadRequest, data)
-		return
-	}
-	defer cli.Close()
 
 	// Parse image name from query or body
 	imageName := r.URL.Query().Get("image") // Example: "nginx:latest"
 	if imageName == "" {
-		data := Message{Data: "Image name is required"}
-		sendJSONResponse(w, http.StatusBadRequest, data)
+		sendJSONResponse(w, http.StatusBadRequest,  "Image name is required")
 		return
 	}
 
 	// Inspect the image
-	imageInfo, _, err := cli.ImageInspectWithRaw(routes.CTX, imageName)
+	imageInfo, _, err := routes.Client.ImageInspectWithRaw(routes.CTX, imageName)
 	if err != nil {
-		data := Message{Data: "Failed to inspect image"}
-		sendJSONResponse(w, http.StatusBadRequest, data)
-		return
+		sendJSONResponse(w, http.StatusBadRequest, "Failed to inspect image")
 	}
 
 	// Determine command
@@ -116,9 +101,7 @@ func (routes *Routes) GetCMDStatus(w http.ResponseWriter, r *http.Request) {
 	entrypoint := imageInfo.Config.Entrypoint
 
 	if len(cmd) == 0 && len(entrypoint) == 0 {
-		http.Error(w, "Image has no CMD or ENTRYPOINT defined", http.StatusBadRequest)
-		data := Message{Data: "Image has no CMD or ENTRYPOINT defined"}
-		sendJSONResponse(w, http.StatusMethodNotAllowed, data)
+		sendJSONResponse(w, http.StatusMethodNotAllowed, "Image has no CMD or ENTRYPOINT defined")
 		return
 	}
 
@@ -147,17 +130,16 @@ func (routes *Routes) GetStartDocker(w http.ResponseWriter, r *http.Request) {
 
 	if routes.isDockerRunning() {
 		// Respond with the container and image details, if Docker is running
-		data := Message{Data: "docker is running"}
-		sendJSONResponse(w, http.StatusBadRequest, data)
+
+		sendJSONResponse(w, http.StatusBadRequest, "docker is running")
 	} else {
 		// Respond with a message if Docker is down
 		err := startDockerDesktop()
 		if err != nil{
-			data := Message{Data: "an error occured while starting docker"}
-			sendJSONResponse(w, http.StatusServiceUnavailable, data)
+
+			sendJSONResponse(w, http.StatusServiceUnavailable, "docker is running")
 		}
-		data := Message{Data: "docker started"}
-		sendJSONResponse(w, http.StatusOK, data)
+		sendJSONResponse(w, http.StatusOK, "docker is running")
 	}
 }
 

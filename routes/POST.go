@@ -35,9 +35,9 @@ func (routes *Routes) PostStopCont(w http.ResponseWriter, r *http.Request){
 
 	err := json.NewDecoder(r.Body).Decode(&data)
 	if err != nil {
-		data := Message{Data: "invalid json"}
+
 		fmt.Println("400 bad request; invalid json", err)
-		sendJSONResponse(w, http.StatusBadRequest, data)
+		sendJSONResponse(w, http.StatusBadRequest, "invalid json")
 		return
 	}
 
@@ -45,14 +45,12 @@ func (routes *Routes) PostStopCont(w http.ResponseWriter, r *http.Request){
 	containerID := data["id"]
 	respErr := routes.stopContainer(containerID, 10)
 	if respErr != nil {
-		data := Message{Data: "invalid json"}
 		fmt.Println("400 bad request; invalid json", err)
-		sendJSONResponse(w, http.StatusBadRequest, data)
+		sendJSONResponse(w, http.StatusBadRequest, "invalid json")
 		return
 	}
 
-	msg := Message{Data: "container stopped"}
-	sendJSONResponse(w, http.StatusOK, msg)
+	sendJSONResponse(w, http.StatusOK, "container stopped")
 
 }
 
@@ -63,8 +61,7 @@ func (routes *Routes) PostCreateAndRunCont(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		fmt.Println("400 bad request; invalid json", err)
 
-		data := Message{Data: "invalid json"}
-		sendJSONResponse(w, http.StatusBadRequest, data)
+		sendJSONResponse(w, http.StatusBadRequest, "invalid json")
 		return
 	}
 
@@ -73,8 +70,7 @@ func (routes *Routes) PostCreateAndRunCont(w http.ResponseWriter, r *http.Reques
 	if respErr != nil {
 		fmt.Println("400 bad request; invalid json", err, resp)
 		
-		data := Message{Data: "invalid json"}
-		sendJSONResponse(w, http.StatusBadRequest, data)
+		sendJSONResponse(w, http.StatusBadRequest, "invalid json")
 		return
 	}
 	
@@ -91,8 +87,7 @@ func (routes *Routes) PostRunCont(w http.ResponseWriter, r *http.Request){
 	if err != nil {
 		fmt.Println("400 bad request; invalid json", err)
 
-		data := Message{Data: "invalid json"}
-		sendJSONResponse(w, http.StatusBadRequest, data)
+		sendJSONResponse(w, http.StatusBadRequest, "invalid json")
 		return
 	}
 
@@ -102,8 +97,7 @@ func (routes *Routes) PostRunCont(w http.ResponseWriter, r *http.Request){
 		if respErr != nil {
 			fmt.Println("400 bad request; invalid json", err, resp)
 			
-			data := Message{Data: "invalid json"}
-			sendJSONResponse(w, http.StatusBadRequest, data)
+			sendJSONResponse(w, http.StatusBadRequest, "invalid json")
 			return
 		}
 		
@@ -113,10 +107,12 @@ func (routes *Routes) PostRunCont(w http.ResponseWriter, r *http.Request){
 	}
 
 	if err := cli.ContainerStart(ctx, oldCont.ID, container.StartOptions{}); err != nil {
-		data := Message{Data: "invalid json"}
-			sendJSONResponse(w, http.StatusBadRequest, data)
-			return
+		sendJSONResponse(w, http.StatusBadRequest, "invalid json")
+		return
 	}
+
+	sendJSONResponse(w, http.StatusBadRequest, oldCont.ID)
+	return
 
 	// Create and run the container
 	
