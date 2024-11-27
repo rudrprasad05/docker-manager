@@ -46,23 +46,13 @@ func (routes *Routes) GetImageList(w http.ResponseWriter, r *http.Request) {
 
 func (routes *Routes) GetContainerList(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-
-	// Create Docker client
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		fmt.Print(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
-		return
-	}
-	defer cli.Close()
-
 	// Get the list of running containers
-	containers, err := cli.ContainerList(routes.CTX, container.ListOptions{})
+	containers, err := routes.Client.ContainerList(routes.CTX, container.ListOptions{
+		All: true,
+	})
 	if err != nil {
 		fmt.Print(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Is Docker running?"})
+		sendJSONResponse(w, http.StatusInternalServerError, "is it running")
 		return
 	}
 

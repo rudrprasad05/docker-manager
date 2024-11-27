@@ -71,8 +71,6 @@ func sendJSONResponse(w http.ResponseWriter, status int, data string) {
 	}
 }
 
-
-
 func (routes *Routes) stopContainer(containerID string, timeoutSeconds int) error {
 	ctx := routes.CTX
 	var c = timeoutSeconds * 60

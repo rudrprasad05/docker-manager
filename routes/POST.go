@@ -29,23 +29,27 @@ type ContainerRun struct {
 	ContainerPort string 	`json:"containerPort"`
 }
 
+type TPostStopCont struct {
+	ID string `json:"id"`
+}
+
 
 func (routes *Routes) PostStopCont(w http.ResponseWriter, r *http.Request){
-	var data map[string]string
+	var reqBody TPostStopCont
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		routes.LOG.Error("here1")
 
-	err := json.NewDecoder(r.Body).Decode(&data)
-	if err != nil {
-
-		fmt.Println("400 bad request; invalid json", err)
-		sendJSONResponse(w, http.StatusBadRequest, "invalid json")
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	// Create and run the container
-	containerID := data["id"]
+	containerID := reqBody.ID
+	fmt.Println(containerID)
 	respErr := routes.stopContainer(containerID, 10)
 	if respErr != nil {
-		fmt.Println("400 bad request; invalid json", err)
+		routes.LOG.Error("here2")
+		fmt.Println("400 bad request; invalid json", respErr)
 		sendJSONResponse(w, http.StatusBadRequest, "invalid json")
 		return
 	}
