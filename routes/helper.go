@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os/exec"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -96,4 +97,26 @@ func (routes *Routes) runContainer(id string) (string, error){
 
 	fmt.Printf("Container %s is running in detached mode.\n", id)
 	return id, nil // Return the container ID
+}
+
+func StartDockerOnMac() error {
+	cmd := exec.Command("open", "-a", "Docker")
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start Docker on macOS: %w", err)
+	}
+	fmt.Println("Docker is starting on macOS...")
+	return nil
+}
+
+func StartDockerOnLinux() error {
+	cmd := exec.Command("sudo", "systemctl", "start", "docker")
+	if err := cmd.Run(); err != nil {
+		// Fallback to older `service` command if systemctl isn't available
+		cmd = exec.Command("sudo", "service", "docker", "start")
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to start Docker on Linux: %w", err)
+		}
+	}
+	fmt.Println("Docker daemon is starting on Linux...")
+	return nil
 }

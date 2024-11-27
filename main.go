@@ -37,6 +37,8 @@ func main() {
 
 	routes := &routes.Routes{LOG: logger, CTX: ctx, Client: cli}
 
+	routes.IsDockerUp()
+
 	router.HandleFunc("/docker/status/check", routes.GetDockerStatus)
 	router.HandleFunc("/docker/status/start", routes.GetStartDocker)
 

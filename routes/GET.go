@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"runtime"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
@@ -17,20 +18,57 @@ type CmdPort struct {
 	Port []nat.Port   `json:"port"`
 }
 
+func (routes *Routes) IsDockerUp(){
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		routes.LOG.Error("")
+		return 
+	}
+	defer cli.Close()
+
+	_, err = routes.Client.Ping(routes.CTX)
+	if err != nil {
+		var errN error
+		switch runtime.GOOS {
+			case "darwin": // macOS
+				errN = StartDockerOnMac()
+			case "linux": // Linux
+				errN = StartDockerOnLinux()
+			default:
+				errN = fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+		}
+
+		if errN != nil {
+			fmt.Printf("Failed to start Docker: %v\n", errN)
+		} else {
+			fmt.Println("Docker started successfully. Please wait a few seconds before retrying.")
+		}
+	}
+} 
+
 func (routes *Routes) GetImageList(w http.ResponseWriter, r *http.Request) {
 	// var imgArr []string
 	w.Header().Set("Content-Type", "application/json")
 	
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	images, err := routes.Client.ImageList(routes.CTX, image.ListOptions{})
 	if err != nil {
 		fmt.Print(err)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(err)
+		data := Message{Data: "is docker running?"}
+		json.NewEncoder(w).Encode(data)
 		return
 	}
-	defer cli.Close()
 
-	images, err := cli.ImageList(routes.CTX, image.ListOptions{})
+	
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(images)
+}
+
+func (routes *Routes) GetImageById(w http.ResponseWriter, r *http.Request) {
+	// var imgArr []string
+	w.Header().Set("Content-Type", "application/json")
+
+	images, err := routes.Client.ImageList(routes.CTX, image.ListOptions{})
 	if err != nil {
 		fmt.Print(err)
 		w.WriteHeader(http.StatusInternalServerError)
