@@ -45,8 +45,9 @@ func main() {
 	router.HandleFunc("/docker/images/delete", routes.DeleteImage)
 
 
-	router.HandleFunc("/docker/container/list", routes.GetContainerList).Methods("POST")
-	router.HandleFunc("/docker/container/run", routes.PostRunCont).Methods("POST")
+	router.HandleFunc("/docker/container/list", routes.GetContainerList).Methods("GET")
+	router.HandleFunc("/docker/container/run", routes.PostCreateAndRunCont).Methods("POST")
+	router.HandleFunc("/docker/container/run-existing", routes.PostRunCont).Methods("POST")
 	router.HandleFunc("/docker/container/stop", routes.PostStopCont).Methods("POST")
 	// mux.HandleFunc("/download", routes.DownloadImageHandler)
 
