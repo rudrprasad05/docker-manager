@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/rudrprasad05/go-logs/logs"
 )
@@ -83,6 +84,8 @@ func (routes *Routes) PostCreateAndRunCont(w http.ResponseWriter, r *http.Reques
 
 func (routes *Routes) PostRunCont(w http.ResponseWriter, r *http.Request){
 	var imageProps ContainerRun
+	var cli = routes.Client
+	var ctx = routes.CTX
 
 	err := json.NewDecoder(r.Body).Decode(&imageProps)
 	if err != nil {
@@ -93,18 +96,30 @@ func (routes *Routes) PostRunCont(w http.ResponseWriter, r *http.Request){
 		return
 	}
 
-	// Create and run the container
-	resp, respErr := routes.createAndRunContainer(imageProps.ImageName, imageProps.ContainerName, imageProps.CMD, imageProps.HostPort, imageProps.ContainerPort)
-	if respErr != nil {
-		fmt.Println("400 bad request; invalid json", err, resp)
+	oldCont, err := cli.ContainerInspect(ctx, imageProps.ImageName)
+	if err != nil {
+		resp, respErr := routes.createAndRunContainer(imageProps.ImageName, imageProps.ContainerName, imageProps.CMD, imageProps.HostPort, imageProps.ContainerPort)
+		if respErr != nil {
+			fmt.Println("400 bad request; invalid json", err, resp)
+			
+			data := Message{Data: "invalid json"}
+			sendJSONResponse(w, http.StatusBadRequest, data)
+			return
+		}
 		
-		data := Message{Data: "invalid json"}
-		sendJSONResponse(w, http.StatusBadRequest, data)
+		json.NewEncoder(w).Encode("resp")
+		sendJSONResponse(w, http.StatusOK, "a")
 		return
 	}
+
+	if err := cli.ContainerStart(ctx, oldCont.ID, container.StartOptions{}); err != nil {
+		data := Message{Data: "invalid json"}
+			sendJSONResponse(w, http.StatusBadRequest, data)
+			return
+	}
+
+	// Create and run the container
 	
-	json.NewEncoder(w).Encode("resp")
-	sendJSONResponse(w, http.StatusOK, "a")
 }
 
 
