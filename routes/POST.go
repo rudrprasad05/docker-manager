@@ -16,6 +16,7 @@ import (
 type Routes struct {
 	LOG *logs.Logger
 	CTX context.Context
+	Client *client.Client
 }
 
 type Message struct {
@@ -81,30 +82,20 @@ func (routes *Routes) PostRunCont(w http.ResponseWriter, r *http.Request){
 		return
 	}
 	
-	json.NewEncoder(w).Encode(resp)
-	sendJSONResponse(w, http.StatusOK, resp)
+	json.NewEncoder(w).Encode("resp")
+	sendJSONResponse(w, http.StatusOK, "a")
 }
 
 
 
 func (routes *Routes) stopContainer(containerID string, timeoutSeconds int) error {
 	ctx := routes.CTX
-
-	// Create a Docker client
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return fmt.Errorf("failed to create Docker client: %w", err)
-	}
-	defer cli.Close()
-
-	
-	// Stop the container
 	var c = timeoutSeconds * 60
 
 	stopOptions := container.StopOptions{
 		Timeout: &c, // Use pointer to time.Duration
 	}
-	if err := cli.ContainerStop(ctx, containerID, stopOptions); err != nil {
+	if err := routes.Client.ContainerStop(ctx, containerID, stopOptions); err != nil {
 		return fmt.Errorf("failed to stop container %s: %w", containerID, err)
 	}
 
@@ -113,19 +104,10 @@ func (routes *Routes) stopContainer(containerID string, timeoutSeconds int) erro
 }
 
 
-func runContainer(id string) (string, error){
+func (routes *Routes) runContainer(id string) (string, error){
 	ctx := context.Background()
 
-	// Create a Docker client
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		panic(err)
-	}
-	defer cli.Close()
-
-	// Configure the container
-
-	if err := cli.ContainerStart(ctx, id, container.StartOptions{}); err != nil {
+	if err := routes.Client.ContainerStart(ctx, id, container.StartOptions{}); err != nil {
 		return "", fmt.Errorf("failed to start container: %w", err)
 	}
 
@@ -135,17 +117,11 @@ func runContainer(id string) (string, error){
 
 func (routes *Routes) createAndRunContainer(imageName string, containerName string, cmd []string, hostPort string, containerPort string) (string, error){
 	ctx := routes.CTX
+	cli := routes.Client
 
-	// Create a Docker client
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		panic(err)
-	}
-	defer cli.Close()
-
-	containerInfo, err := findContainerByName(containerName)
+	containerInfo, err := routes.findContainerByName(containerName)
 	if err == nil {
-		if err := cli.ContainerStart(ctx, containerInfo.ID, container.StartOptions{}); err != nil {
+		if err := routes.Client.ContainerStart(ctx, containerInfo.ID, container.StartOptions{}); err != nil {
 			return "", fmt.Errorf("failed to start container: %w", err)
 		}
 		fmt.Printf("No new container was created. Container %s is running in detached mode.\n", containerName)
@@ -174,15 +150,10 @@ func (routes *Routes) createAndRunContainer(imageName string, containerName stri
 	return resp.ID, nil // Return the container ID
 }
 
-func findContainerByName(containerName string) (*types.ContainerJSON, error) {
+func (routes *Routes) findContainerByName(containerName string) (*types.ContainerJSON, error) {
 	ctx := context.Background()
+	cli := routes.Client
 
-	// Create a Docker client
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Docker client: %w", err)
-	}
-	defer cli.Close()
 
 	// Inspect the container using its name
 	containerInfo, err := cli.ContainerInspect(ctx, containerName)

@@ -6,9 +6,16 @@ import (
 	"net/http"
 	"os/exec"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 )
+
+type CmdPort struct {
+	Cmd  []string `json:"cmd"`
+	Port []nat.Port   `json:"port"`
+}
 
 func (routes *Routes) GetImageList(w http.ResponseWriter, r *http.Request) {
 	// var imgArr []string
@@ -32,18 +39,38 @@ func (routes *Routes) GetImageList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// for _, image := range images {
-	// 	if len(image.RepoTags) > 0 {
-	// 		for _, tag := range image.RepoTags {
-	// 			imgArr = append(imgArr, tag)
-	// 		}
-	// 	} else {
-	// 		fmt.Println("<untagged image>")
-	// 	}
-	// }
+	
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(images)
 }
+
+func (routes *Routes) GetContainerList(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Create Docker client
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		fmt.Print(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	defer cli.Close()
+
+	// Get the list of running containers
+	containers, err := cli.ContainerList(routes.CTX, container.ListOptions{})
+	if err != nil {
+		fmt.Print(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Is Docker running?"})
+		return
+	}
+
+	// Return container data as JSON
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(containers)
+}
+
 
 func (routes *Routes) GetDockerStatus(w http.ResponseWriter, r *http.Request) {
 	// Check if Docker is runnin
@@ -56,6 +83,62 @@ func (routes *Routes) GetDockerStatus(w http.ResponseWriter, r *http.Request) {
 		// Respond with a message if Docker is down
 		data := Message{Data: "docker not running"}
 		sendJSONResponse(w, http.StatusServiceUnavailable, data)
+	}
+}
+
+func (routes *Routes) GetCMDStatus(w http.ResponseWriter, r *http.Request) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		data := Message{Data: "failed to create docker client"}
+		sendJSONResponse(w, http.StatusBadRequest, data)
+		return
+	}
+	defer cli.Close()
+
+	// Parse image name from query or body
+	imageName := r.URL.Query().Get("image") // Example: "nginx:latest"
+	if imageName == "" {
+		data := Message{Data: "Image name is required"}
+		sendJSONResponse(w, http.StatusBadRequest, data)
+		return
+	}
+
+	// Inspect the image
+	imageInfo, _, err := cli.ImageInspectWithRaw(routes.CTX, imageName)
+	if err != nil {
+		data := Message{Data: "Failed to inspect image"}
+		sendJSONResponse(w, http.StatusBadRequest, data)
+		return
+	}
+
+	// Determine command
+	cmd := imageInfo.Config.Cmd
+	entrypoint := imageInfo.Config.Entrypoint
+
+	if len(cmd) == 0 && len(entrypoint) == 0 {
+		http.Error(w, "Image has no CMD or ENTRYPOINT defined", http.StatusBadRequest)
+		data := Message{Data: "Image has no CMD or ENTRYPOINT defined"}
+		sendJSONResponse(w, http.StatusMethodNotAllowed, data)
+		return
+	}
+
+	portProtocol := imageInfo.Config.ExposedPorts
+
+	var ports []nat.Port
+	for port := range portProtocol {
+		ports = append(ports, port[:len(port)-len("/tcp")]) // Remove "/tcp" suffix
+	}
+
+	data := CmdPort{
+		Cmd:  cmd,
+		Port: ports,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }
 

@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/docker/docker/client"
+
 	"github.com/gorilla/mux"
 	"github.com/rudrprasad05/go-logs/logs"
 )
@@ -27,34 +29,33 @@ func main() {
 		log.Println("err", err)
 		return
 	}
-	routes := &routes.Routes{LOG: logger, CTX: ctx}
+
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		log.Fatalf("Failed to initialize Docker client: %v", err)
+	}
+
+	routes := &routes.Routes{LOG: logger, CTX: ctx, Client: cli}
 
 	router.HandleFunc("/docker/status/check", routes.GetDockerStatus)
 	router.HandleFunc("/docker/status/start", routes.GetStartDocker)
+
 	router.HandleFunc("/docker/images/list", routes.GetImageList)
+	router.HandleFunc("/docker/images/cmd/status", routes.GetCMDStatus)
+	router.HandleFunc("/docker/images/delete", routes.DeleteImage)
+
+
+	router.HandleFunc("/docker/container/list", routes.GetContainerList).Methods("POST")
 	router.HandleFunc("/docker/container/run", routes.PostRunCont).Methods("POST")
 	router.HandleFunc("/docker/container/stop", routes.PostStopCont).Methods("POST")
 	// mux.HandleFunc("/download", routes.DownloadImageHandler)
 
-	corsHandler := enableCORS(router)
+	corsHandler := EnableCORS(router)
 	loggedHandler := logs.LoggingMiddleware(logger, corsHandler)
 
 	log.Println("Server running on port 8081...")
 	log.Fatal(http.ListenAndServe(":8081", loggedHandler))
 }
 
-
-func enableCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "https://imageconverter.rudrprasad.com")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
 
 
