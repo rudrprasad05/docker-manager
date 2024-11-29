@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"os/exec"
 	"runtime"
+	"sort"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 )
@@ -98,7 +100,6 @@ func (routes *Routes) GetContainerList(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(containers)
 }
-
 
 func (routes *Routes) GetDockerStatus(w http.ResponseWriter, r *http.Request) {
 	// Check if Docker is runnin
@@ -205,4 +206,48 @@ func (routes *Routes) isDockerRunning() bool {
 
 	// If no error, Docker is running
 	return true
+}
+
+
+func (routes *Routes) SearchImages(w http.ResponseWriter, r *http.Request) {
+	// Set the response content type
+	w.Header().Set("Content-Type", "application/json")
+
+	// Get the search query from the URL
+	query := r.URL.Query().Get("search")
+
+	var results []registry.SearchResult
+	var err error;
+	if query == "" {
+		// Default behavior: Fetch top images by popularity
+		 
+		results, err = routes.Client.ImageSearch(routes.CTX, "popular", registry.SearchOptions{Limit: 10})
+	} else {
+		// Search for images matching the query
+		results, err = routes.Client.ImageSearch(routes.CTX, query, registry.SearchOptions{Limit: 20})
+	}
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to search images: %s", err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].StarCount > results[j].StarCount
+	})
+
+	// Transform the Docker search results into a response structure
+	var response []registry.SearchResult
+	for _, result := range results {
+		response = append(response, registry.SearchResult{
+			Name:        result.Name,
+			Description: result.Description,
+			StarCount:   result.StarCount,
+			IsOfficial:  result.IsOfficial,
+		})
+	}
+
+	// Encode the response into JSON and send it
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }

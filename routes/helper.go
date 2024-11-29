@@ -25,16 +25,19 @@ func (routes *Routes) createAndRunContainer(imageName string, containerName stri
 		return containerInfo.ID, nil // Return the container ID
 	}
 
-	// Configure the container
-	resp, err := cli.ContainerCreate(ctx, &container.Config{
+	config := &container.Config{
 		Image: imageName, // Use the local image
 		Cmd:   cmd,       // Command to execute
 		Tty:   false,     // Do not allocate a TTY
-	}, &container.HostConfig{
+	}
+	hostConfig := &container.HostConfig{
 		PortBindings: map[nat.Port][]nat.PortBinding{
 			nat.Port(containerPort + "/tcp"): {{HostPort: hostPort}},
 		},
-	}, nil, nil, containerName)
+	}
+
+	// Configure the container
+	resp, err := cli.ContainerCreate(ctx, config, hostConfig, nil, nil, containerName)
 	if err != nil {
 		return "", fmt.Errorf("failed to start container: %w", err)
 	}
@@ -45,6 +48,22 @@ func (routes *Routes) createAndRunContainer(imageName string, containerName stri
 
 	fmt.Printf("Container %s is running in detached mode.\n", containerName)
 	return resp.ID, nil // Return the container ID
+}
+
+func (routes *Routes) IsPortInUse(port string) (bool, error) {
+	containers, err := routes.Client.ContainerList(context.Background(), container.ListOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	for _, container := range containers {
+		for _, p := range container.Ports {
+			if fmt.Sprintf("%d", p.PublicPort) == port {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 func (routes *Routes) findContainerByName(containerName string) (*types.ContainerJSON, error) {

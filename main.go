@@ -39,14 +39,17 @@ func main() {
 
 	routes.IsDockerUp()
 
-	router.HandleFunc("/docker/status/check", routes.GetDockerStatus)
-	router.HandleFunc("/docker/status/start", routes.GetStartDocker)
+	// router.HandleFunc("/docker/status/check", routes.GetDockerStatus)
+	// router.HandleFunc("/docker/status/start", routes.GetStartDocker)
 
 	router.HandleFunc("/docker/images/list", routes.GetImageList)
+	router.HandleFunc("/docker/images/pull", routes.PostPullImage)
+	router.HandleFunc("/docker/images/search", routes.SearchImages)
 	router.HandleFunc("/docker/images/cmd/status", routes.GetCMDStatus)
 	router.HandleFunc("/docker/images/delete", routes.DeleteImage)
 
 
+	router.HandleFunc("/docker/container/delete", routes.DeleteContainer)
 	router.HandleFunc("/docker/container/list", routes.GetContainerList).Methods("GET")
 	router.HandleFunc("/docker/container/run", routes.PostCreateAndRunCont).Methods("POST")
 	router.HandleFunc("/docker/container/run-existing", routes.PostRunCont).Methods("POST")

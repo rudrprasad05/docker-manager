@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
 )
 
 func (routes *Routes) DeleteImage(w http.ResponseWriter, r *http.Request) {
@@ -29,29 +29,57 @@ func (routes *Routes) DeleteImage(w http.ResponseWriter, r *http.Request) {
 		imageID = body.ID
 	}
 
-	// Initialize Docker client
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to create Docker client: %v", err), http.StatusInternalServerError)
-		return
-	}
-	defer cli.Close()
-
 	// Remove the Docker image
 
-	removedItems, err := cli.ImageRemove(routes.CTX, imageID, image.RemoveOptions{
-		Force:         false,
+	removedItems, err := routes.Client.ImageRemove(routes.CTX, imageID, image.RemoveOptions{
+		Force:         true,
 		PruneChildren: true,
 	})
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to delete Docker image: %v", err), http.StatusInternalServerError)
+		sendJSONResponse(w, http.StatusInternalServerError, fmt.Sprintf("Failed to delete Docker image: %v", err))
 		return
 	}
 
 	// Send the response back to the client
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(removedItems); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		sendJSONResponse(w, http.StatusInternalServerError, fmt.Sprintf("Failed to encode response"))
 		return
 	}
+}
+
+
+func (routes *Routes) DeleteContainer(w http.ResponseWriter, r *http.Request) {
+	// Only allow DELETE method
+	if r.Method != http.MethodDelete {
+		sendJSONResponse(w, http.StatusMethodNotAllowed, "failed to delete")
+		return
+	}
+
+	// Parse image ID or name from query parameter or request body
+	imageID := r.URL.Query().Get("id") // Check query parameter first
+	if imageID == "" {
+		var body struct {
+			ID string `json:"id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ID == "" {
+			sendJSONResponse(w, http.StatusBadRequest, "missing info")
+			return
+		}
+		imageID = body.ID
+	}
+	// Remove the Docker image
+
+	err := routes.Client.ContainerRemove(routes.CTX, imageID, container.RemoveOptions{
+		Force: true,
+	})
+	if err != nil {
+		sendJSONResponse(w, http.StatusInternalServerError, "failed to delete")
+		routes.LOG.Error(err.Error())
+		return
+	}
+
+	// Send the response back to the client
+	sendJSONResponse(w, http.StatusOK, "container deleted")
+	return
 }
